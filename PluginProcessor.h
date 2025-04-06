@@ -5,6 +5,7 @@
 
 #include <complex>
 #include <vector>
+#include <numbers>
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -47,14 +48,17 @@ public:
     void setStateInformation(const void *data, int sizeInBytes) override;
 
 private:
-    void setFftOrder(int order);
+    void setupFFT();
     void pushSample(int index,float x);
     juce::dsp::FFT FFT;
-    std::vector<std::complex<float>> fft_audio[2];
-    std::vector<std::complex<float>> fft_freq[2];
-    std::vector<float> result_buffer[2];
+    std::vector<std::vector<std::complex<float>>> fft_audio[2];
+    std::vector<std::vector<std::complex<float>>> fft_freq[2];
+    std::vector<float> hann;
+    std::vector<std::vector<float>> result_buffer[2];
     int fft_order;
     int fft_size;
+    int fft_overwrap_order;
+    int fft_overwrap;
 
     juce::AudioParameterFloat *threshold;
     //==============================================================================

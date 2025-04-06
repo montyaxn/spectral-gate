@@ -1,3 +1,5 @@
+set(CMAKE_CXX_STANDARD 20)
+
 # Example Audio Plugin CMakeLists.txt
 
 # To get started on a new plugin, copy this entire folder (containing this file and C++ sources) to

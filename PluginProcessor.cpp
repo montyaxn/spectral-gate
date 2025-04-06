@@ -13,7 +13,9 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                          ),
       FFT(10)
 {
-    setFftOrder(10);
+    fft_overwrap_order = 2;
+    fft_order = 10;
+    setupFFT();
     addParameter(threshold = new juce::AudioParameterFloat("threshold",
                                                            "Threshold",
                                                            0.0f,
@@ -159,9 +161,13 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
             pushSample(channel, channelData[i]);
         }
         buffer.clear(channel, 0, buffer.getNumSamples());
-        buffer.copyFrom(channel, 0, result_buffer[channel].data(), buffer.getNumSamples());
-        result_buffer[channel].erase(result_buffer[channel].begin(), result_buffer[channel].begin() + buffer.getNumSamples());
+        for (int ow = 0; ow < fft_overwrap; ow++)
+        {
+            buffer.addFrom(channel, 0, result_buffer[channel][ow].data(), buffer.getNumSamples());
+            result_buffer[channel][ow].erase(result_buffer[channel][ow].begin(), result_buffer[channel][ow].begin() + buffer.getNumSamples());
+        }
     }
+    buffer.applyGain(1.0f / fft_overwrap);
 }
 
 //==============================================================================
@@ -191,40 +197,59 @@ void AudioPluginAudioProcessor::setStateInformation(const void *data, int sizeIn
     juce::ignoreUnused(data, sizeInBytes);
 }
 
-void AudioPluginAudioProcessor::setFftOrder(int order)
+void AudioPluginAudioProcessor::setupFFT()
 {
-    FFT = juce::dsp::FFT(order);
-    fft_order = 10;
     fft_size = 1 << fft_order;
+    fft_overwrap = 1 << fft_overwrap_order;
+    FFT = juce::dsp::FFT(fft_order);
 
-    for (int i = 0; i < 2; i++)
+    for (int channel = 0; channel < 2; channel++)
     {
-        fft_audio[i].reserve(fft_size);
-        fft_freq[i].resize(fft_size);
-        result_buffer[i].clear();
-        result_buffer[i].insert(result_buffer[i].end(), fft_size, 0.0f);
+        fft_audio[channel].resize(fft_overwrap);
+        fft_freq[channel].resize(fft_overwrap);
+        result_buffer[channel].resize(fft_overwrap);
+        for (int j = 0; j < fft_overwrap; j++)
+        {
+            fft_audio[channel][j].clear();
+            fft_audio[channel][j].reserve(fft_size);
+            fft_audio[channel][j].insert(fft_audio[channel][j].end(), j * fft_size / fft_overwrap, 0.0f);
+            fft_freq[channel][j].resize(fft_size);
+            result_buffer[channel][j].clear();
+            result_buffer[channel][j].insert(result_buffer[channel][j].end(), fft_size - j * fft_size / fft_overwrap, 0.0f);
+        }
+    }
+    for (int i = 0; i < fft_size; i++)
+    {
+        hann.push_back(0.5f - 0.5 * cos(2.f * std::numbers::pi_v<float> * i / fft_size));
     }
 }
 
-void AudioPluginAudioProcessor::pushSample(int index, float x)
+void AudioPluginAudioProcessor::pushSample(int channel, float x)
 {
-    fft_audio[index].push_back(std::complex(x, 0.0f));
-    if (fft_audio[index].size() == fft_size)
+    for (int ow = 0; ow < fft_overwrap; ow++)
     {
-        FFT.perform(fft_audio[index].data(), fft_freq[index].data(), false);
-        for (int i = 0; i < fft_freq[index].size(); i++)
+        fft_audio[channel][ow].push_back(std::complex(x, 0.0f));
+        if (fft_audio[channel][ow].size() == fft_size)
         {
-            if (std::abs(fft_freq[index][i]) < *threshold)
+            for (int i = 0; i < fft_size; i++)
             {
-                fft_freq[index][i] = std::complex<float>(0.f, 0.f);
+                fft_audio[channel][ow][i] *= std::complex<float>(hann[i]);
             }
+            FFT.perform(fft_audio[channel][ow].data(), fft_freq[channel][ow].data(), false);
+            for (int i = 0; i < fft_size; i++)
+            {
+                if (std::abs(fft_freq[channel][ow][i]) < *threshold)
+                {
+                    fft_freq[channel][ow][i] = std::complex<float>(0.f, 0.f);
+                }
+            }
+            FFT.perform(fft_freq[channel][ow].data(), fft_audio[channel][ow].data(), true);
+            for (auto s : fft_audio[channel][ow])
+            {
+                result_buffer[channel][ow].push_back(s.real());
+            }
+            fft_audio[channel][ow].clear();
         }
-        FFT.perform(fft_freq[index].data(), fft_audio[index].data(), true);
-        for (auto s : fft_audio[index])
-        {
-            result_buffer[index].push_back(s.real());
-        }
-        fft_audio[index].clear();
     }
 }
 
