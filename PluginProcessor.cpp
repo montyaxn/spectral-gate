@@ -10,9 +10,15 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 #endif
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)
 #endif
-      ),FFT(10)
+                         ),
+      FFT(10)
 {
     setFftOrder(10);
+    addParameter(threshold = new juce::AudioParameterFloat("threshold",
+                                                           "Threshold",
+                                                           0.0f,
+                                                           5.0f,
+                                                           0.0f));
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
@@ -152,7 +158,7 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         {
             pushSample(channel, channelData[i]);
         }
-        buffer.clear(channel,0,buffer.getNumSamples());
+        buffer.clear(channel, 0, buffer.getNumSamples());
         buffer.copyFrom(channel, 0, result_buffer[channel].data(), buffer.getNumSamples());
         result_buffer[channel].erase(result_buffer[channel].begin(), result_buffer[channel].begin() + buffer.getNumSamples());
     }
@@ -194,7 +200,7 @@ void AudioPluginAudioProcessor::setFftOrder(int order)
     for (int i = 0; i < 2; i++)
     {
         fft_audio[i].reserve(fft_size);
-        fft_freq[i].reserve(fft_size);
+        fft_freq[i].resize(fft_size);
         result_buffer[i].clear();
         result_buffer[i].insert(result_buffer[i].end(), fft_size, 0.0f);
     }
@@ -206,9 +212,17 @@ void AudioPluginAudioProcessor::pushSample(int index, float x)
     if (fft_audio[index].size() == fft_size)
     {
         FFT.perform(fft_audio[index].data(), fft_freq[index].data(), false);
+        for (int i = 0; i < fft_freq[index].size(); i++)
+        {
+            if (std::abs(fft_freq[index][i]) < *threshold)
+            {
+                fft_freq[index][i] = std::complex<float>(0.f, 0.f);
+            }
+        }
         FFT.perform(fft_freq[index].data(), fft_audio[index].data(), true);
-        for(auto x:fft_audio[index]){
-            result_buffer[index].push_back(x.real());
+        for (auto s : fft_audio[index])
+        {
+            result_buffer[index].push_back(s.real());
         }
         fft_audio[index].clear();
     }

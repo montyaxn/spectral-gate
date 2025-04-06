@@ -55,6 +55,8 @@ private:
     std::vector<float> result_buffer[2];
     int fft_order;
     int fft_size;
+
+    juce::AudioParameterFloat *threshold;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)
 };
