@@ -60,6 +60,8 @@ private:
     int fft_overwrap_order;
     int fft_overwrap;
 
+    juce::AudioParameterInt *fft_order_param;
+    juce::AudioParameterInt *fft_overwrap_order_param;
     juce::AudioParameterFloat *threshold;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)

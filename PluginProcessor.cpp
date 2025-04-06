@@ -16,6 +16,16 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
     fft_overwrap_order = 2;
     fft_order = 10;
     setupFFT();
+    addParameter(fft_order_param = new juce::AudioParameterInt("fft_order",
+                                                                 "FFT order",
+                                                                 3,
+                                                                 16,
+                                                                 10));
+    addParameter(fft_overwrap_order_param = new juce::AudioParameterInt("fft_overwrap_order",
+                                                           "FFT overwrap",
+                                                           1,
+                                                           3,
+                                                           1));
     addParameter(threshold = new juce::AudioParameterFloat("threshold",
                                                            "Threshold",
                                                            0.0f,
@@ -138,6 +148,12 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
+    if (fft_order != *fft_order_param || fft_overwrap_order != *fft_overwrap_order_param)
+    {
+        fft_order = *fft_order_param;
+        fft_overwrap_order = *fft_overwrap_order_param;
+        setupFFT();
+    }
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
